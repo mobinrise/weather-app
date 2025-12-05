@@ -76,8 +76,14 @@
             const [forecast, setForecast] = useState(null);
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState('');
+            const [suggestions, setSuggestions] = useState([]);
 
-            const API_KEY = '9e24088e66e7cb79e0e8169b32937cae';
+            const API_KEY = '898f8fe6d309f8b26ce6c868252bfa98'; // Your OpenWeatherMap API key
+
+            const popularPakistanCities = [
+                'Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad',
+                'Multan', 'Peshawar', 'Quetta', 'Sialkot', 'Gujranwala'
+            ];
 
             const getWeatherIcon = (weatherMain, size = 64) => {
                 const iconProps = { size: size, className: "text-white" };
@@ -96,29 +102,33 @@
                 }
             };
 
-            const fetchWeather = async () => {
-                if (!city.trim()) {
+            const fetchWeather = async (searchCity = city) => {
+                const cityName = searchCity.trim();
+                if (!cityName) {
                     setError('Please enter a city name');
                     return;
                 }
 
                 setLoading(true);
                 setError('');
+                setSuggestions([]);
 
                 try {
                     const weatherResponse = await fetch(
-                        `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric`
+                        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(cityName)}&appid=${API_KEY}&units=metric`
                     );
 
                     if (!weatherResponse.ok) {
-                        throw new Error('City not found');
+                        const errorData = await weatherResponse.json();
+                        throw new Error(errorData.message || 'City not found');
                     }
 
                     const weatherData = await weatherResponse.json();
                     setWeather(weatherData);
+                    setCity(cityName);
 
                     const forecastResponse = await fetch(
-                        `https://api.openweathermap.org/data/2.5/forecast?q=${city}&appid=${API_KEY}&units=metric`
+                        `https://api.openweathermap.org/data/2.5/forecast?lat=${weatherData.coord.lat}&lon=${weatherData.coord.lon}&appid=${API_KEY}&units=metric`
                     );
 
                     if (forecastResponse.ok) {
@@ -129,12 +139,19 @@
 
                     setError('');
                 } catch (err) {
-                    setError('City not found. Please try again.');
+                    console.error('API Error:', err);
+                    setError(`Unable to fetch weather data. ${err.message}. Please try:`);
+                    setSuggestions(popularPakistanCities.filter(c => c.toLowerCase() !== cityName.toLowerCase()));
                     setWeather(null);
                     setForecast(null);
                 } finally {
                     setLoading(false);
                 }
+            };
+
+            const handleSuggestionClick = (suggestedCity) => {
+                setCity(suggestedCity);
+                fetchWeather(suggestedCity);
             };
 
             return (
@@ -167,7 +184,32 @@
 
                             {error && (
                                 <div className="bg-red-500/20 backdrop-blur-sm border border-red-300/50 text-white p-4 rounded-xl mb-6">
-                                    {error}
+                                    <p className="mb-3 font-semibold">⚠️ {error}</p>
+                                    <p className="text-sm mb-3 text-white/80">
+                                        The API key might be invalid. To fix this:
+                                    </p>
+                                    <ol className="text-sm text-white/90 mb-3 list-decimal list-inside space-y-1">
+                                        <li>Go to <a href="https://openweathermap.org/api" target="_blank" className="underline">openweathermap.org/api</a></li>
+                                        <li>Sign up for a FREE account</li>
+                                        <li>Get your API key (takes 2 minutes)</li>
+                                        <li>Replace the API_KEY in the code with your key</li>
+                                    </ol>
+                                    {suggestions.length > 0 && (
+                                        <>
+                                            <p className="text-sm mb-2">Or try these cities:</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {suggestions.map((suggestion, index) => (
+                                                    <button
+                                                        key={index}
+                                                        onClick={() => handleSuggestionClick(suggestion)}
+                                                        className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-all"
+                                                    >
+                                                        {suggestion}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             )}
 
@@ -263,8 +305,22 @@
                             )}
 
                             {!weather && !error && (
-                                <div className="text-center text-white/80 py-12">
-                                    Enter a city name to see the weather and 5-day forecast
+                                <div className="text-center text-white/80 py-8">
+                                    <p className="text-lg mb-6">Enter a city name to see the weather</p>
+                                    <div className="space-y-3">
+                                        <p className="text-sm text-white/60">Popular Pakistani Cities:</p>
+                                        <div className="flex flex-wrap justify-center gap-2">
+                                            {popularPakistanCities.map((popularCity, index) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => handleSuggestionClick(popularCity)}
+                                                    className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-all"
+                                                >
+                                                    {popularCity}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
